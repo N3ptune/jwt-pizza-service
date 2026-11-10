@@ -103,7 +103,7 @@ test('sendMetricsToGrafana reports failures', async () => {
 
 test('sendMetricsPeriodically sends on an interval and skips when unconfigured', async () => {
   jest.spyOn(console, 'log').mockImplementation(() => {});
-  expect(metrics.sendMetricsPeriodically(1000, undefined)).toBeNull();
+  expect(metrics.sendMetricsPeriodically(1000, {})).toBeNull();
 
   jest.useFakeTimers();
   const fetchMock = jest.spyOn(global, 'fetch').mockRejectedValue(new Error('offline'));
