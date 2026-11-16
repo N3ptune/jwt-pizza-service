@@ -5,7 +5,7 @@
 # Usage: ./simulateTraffic.sh <host>
 # Example: ./simulateTraffic.sh https://pizza-service.yourdomain.click
 #
-# Requires the demo users created by generatePizzaData.sh (d@jwt.com / diner).
+# Requires the demo users created by generatePizzaData.sh (d@jwt.com, f@jwt.com).
 
 if [ -z "$1" ]; then
   echo "Usage: $0 <host>"
@@ -23,6 +23,11 @@ trap cleanup SIGINT SIGTERM
 
 json='Content-Type: application/json'
 
+# Extract the auth token from a login/register response (no jq required)
+token_of() {
+  sed -E 's/.*"token":"([^"]*)".*/\1/'
+}
+
 # Menu browsing: steady GET traffic
 while true; do
   curl -s "$host/api/order/menu" > /dev/null
@@ -39,7 +44,7 @@ done &
 
 # Franchisee session: login, browse franchises, logout (PUT, GET, DELETE)
 while true; do
-  token=$(curl -s -X PUT "$host/api/auth" -d '{"email":"f@jwt.com", "password":"franchisee"}' -H "$json" | jq -r '.token')
+  token=$(curl -s -X PUT "$host/api/auth" -d '{"email":"f@jwt.com", "password":"franchisee"}' -H "$json" | token_of)
   echo "Franchisee logged in"
   curl -s "$host/api/franchise?page=0&limit=10" -H "Authorization: Bearer $token" > /dev/null
   sleep 110
@@ -51,7 +56,7 @@ done &
 # New customers registering (POST auth)
 while true; do
   id=$RANDOM$RANDOM
-  token=$(curl -s -X POST "$host/api/auth" -d "{\"name\":\"sim diner $id\", \"email\":\"sim$id@jwt.com\", \"password\":\"diner\"}" -H "$json" | jq -r '.token')
+  token=$(curl -s -X POST "$host/api/auth" -d "{\"name\":\"sim diner $id\", \"email\":\"sim$id@jwt.com\", \"password\":\"diner\"}" -H "$json" | token_of)
   echo "Registered sim$id"
   curl -s "$host/api/order" -H "Authorization: Bearer $token" > /dev/null
   sleep 60
@@ -60,7 +65,7 @@ done &
 
 # Diner buying pizzas: successful orders (POST order)
 while true; do
-  token=$(curl -s -X PUT "$host/api/auth" -d '{"email":"d@jwt.com", "password":"diner"}' -H "$json" | jq -r '.token')
+  token=$(curl -s -X PUT "$host/api/auth" -d '{"email":"d@jwt.com", "password":"diner"}' -H "$json" | token_of)
   echo "Diner logged in"
   for i in 1 2 3; do
     curl -s -X POST "$host/api/order" -H "$json" -H "Authorization: Bearer $token" \
@@ -77,7 +82,7 @@ done &
 items=$(printf '{ "menuId": 1, "description": "Veggie", "price": 0.05 },%.0s' $(seq 1 21))
 items="[${items%,}]"
 while true; do
-  token=$(curl -s -X PUT "$host/api/auth" -d '{"email":"d@jwt.com", "password":"diner"}' -H "$json" | jq -r '.token')
+  token=$(curl -s -X PUT "$host/api/auth" -d '{"email":"d@jwt.com", "password":"diner"}' -H "$json" | token_of)
   curl -s -X POST "$host/api/order" -H "$json" -H "Authorization: Bearer $token" \
     -d "{\"franchiseId\": 1, \"storeId\":1, \"items\":$items}" > /dev/null
   echo "Ordered too many pizzas (expected failure)"
